@@ -1,0 +1,17 @@
+GIT CHEATSHEET (BASICS)
+
+Check status:
+  git status -sb
+
+Stage changes:
+  git add <file>
+  git add .
+
+Commit:
+  git commit -m "Message"
+
+Push:
+  git push
+
+Pull latest:
+  git pull
