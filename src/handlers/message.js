@@ -1,0 +1,92 @@
+const { EmbedBuilder } = require('discord.js');
+const { evidenceWindowMs } = require('../constants');
+const { buildEvidencePromptRow, downloadAttachment, scheduleMessageDeletion } = require('../utils/evidence');
+
+function registerMessageHandlers(client, { config, state }) {
+  const { pendingEvidence, activeIncidents, autoDeleteMs } = state;
+
+  client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+    if (message.attachments.size === 0) return;
+
+    const pending = pendingEvidence.get(message.author.id);
+    if (!pending) return;
+    const pendingType = pending.type || 'incident';
+    if (pending.channelId !== message.channelId) return;
+    if (Date.now() > pending.expiresAt) {
+      pendingEvidence.delete(message.author.id);
+      return;
+    }
+
+    const voteChannel = await client.channels.fetch(config.voteChannelId).catch(() => null);
+    if (!voteChannel) return;
+
+    const voteMessage = await voteChannel.messages.fetch(pending.messageId).catch(() => null);
+    if (!voteMessage) return;
+
+    const attachmentLinks = [...message.attachments.values()].map((a) => a.url).join('\n');
+    const embed = EmbedBuilder.from(voteMessage.embeds[0]);
+    const fields = embed.data.fields ?? [];
+    const idx = fields.findIndex((f) => f.name === '🎥 Bewijs');
+    if (idx >= 0) {
+      const existing = fields[idx].value?.trim() || '';
+      const hasPlaceholder = existing === 'Geen bewijs geüpload';
+      fields[idx].value = hasPlaceholder ? attachmentLinks : `${existing}\n${attachmentLinks}`;
+    }
+    embed.setFields(fields);
+
+    await voteMessage.edit({ embeds: [embed] });
+    try {
+      const attachments = [...message.attachments.values()];
+      const files = [];
+      for (const a of attachments) {
+        const buffer = await downloadAttachment(a.url);
+        files.push({ attachment: buffer, name: a.name || 'bewijs' });
+      }
+      if (files.length > 0) {
+        const incidentData = activeIncidents.get(pending.messageId);
+        const raceLabel =
+          pendingType === 'appeal'
+            ? `Incident ${pending.incidentNumber || 'Onbekend'}`
+            : incidentData
+              ? `${incidentData.incidentNumber} - ${incidentData.raceName} (${incidentData.round})`
+              : 'Onbekend incident';
+        await voteChannel.send({
+          content:
+            pendingType === 'appeal'
+              ? `📎 Bewijsmateriaal wederwoord van ${message.author.tag} - ${raceLabel}`
+              : `📎 Bewijsmateriaal van ${message.author.tag} - ${raceLabel}`,
+          files
+        });
+      }
+    } catch (err) {
+      console.error('Bewijs uploaden mislukt:', err);
+    }
+    const confirmation = await message.reply('✅ Bewijsmateriaal toegevoegd aan de steward-melding.');
+    if (pending.promptMessageId) {
+      const oldPrompt = await message.channel.messages.fetch(pending.promptMessageId).catch(() => null);
+      if (oldPrompt?.deletable) await oldPrompt.delete().catch(() => {});
+    }
+    const prompt = await message.reply({
+      content: 'Wil je nog meer beelden uploaden?',
+      components: [buildEvidencePromptRow(pendingType)]
+    });
+    scheduleMessageDeletion(client, autoDeleteMs, message.id, message.channelId);
+    scheduleMessageDeletion(client, autoDeleteMs, confirmation.id, confirmation.channelId);
+    scheduleMessageDeletion(client, autoDeleteMs, prompt.id, prompt.channelId);
+    if (prompt?.id) {
+      pendingEvidence.set(message.author.id, {
+        ...pending,
+        expiresAt: Date.now() + evidenceWindowMs,
+        promptMessageId: prompt.id
+      });
+    } else {
+      pendingEvidence.set(message.author.id, {
+        ...pending,
+        expiresAt: Date.now() + evidenceWindowMs
+      });
+    }
+  });
+}
+
+module.exports = { registerMessageHandlers };
