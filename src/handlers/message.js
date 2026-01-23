@@ -2,12 +2,37 @@ const { EmbedBuilder } = require('discord.js');
 const { evidenceWindowMs } = require('../constants');
 const { buildEvidencePromptRow, downloadAttachment, scheduleMessageDeletion } = require('../utils/evidence');
 
+const extractUrls = (content = '') => {
+  const matches = content.match(/https?:\/\/\S+/gi) || [];
+  return matches
+    .map((url) => url.replace(/[),.;:]+$/g, ''))
+    .filter(Boolean);
+};
+
+const isAllowedEvidenceUrl = (url) => {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    return (
+      host === 'youtube.com' ||
+      host === 'm.youtube.com' ||
+      host === 'youtu.be' ||
+      host === 'twitch.tv' ||
+      host.endsWith('.twitch.tv')
+    );
+  } catch {
+    return false;
+  }
+};
+
 function registerMessageHandlers(client, { config, state }) {
   const { pendingEvidence, activeIncidents, autoDeleteMs } = state;
 
   client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
-    if (message.attachments.size === 0) return;
+    const urls = extractUrls(message.content);
+    const allowedUrls = urls.filter(isAllowedEvidenceUrl);
+    if (message.attachments.size === 0 && allowedUrls.length === 0) return;
 
     const pending = pendingEvidence.get(message.author.id);
     if (!pending) return;
@@ -24,14 +49,19 @@ function registerMessageHandlers(client, { config, state }) {
     const voteMessage = await voteChannel.messages.fetch(pending.messageId).catch(() => null);
     if (!voteMessage) return;
 
-    const attachmentLinks = [...message.attachments.values()].map((a) => a.url).join('\n');
+    const attachmentLinks = [...message.attachments.values()].map((a) => a.url);
+    const evidenceLinks = [...attachmentLinks, ...allowedUrls];
+    const evidenceText = evidenceLinks.join('\n');
     const embed = EmbedBuilder.from(voteMessage.embeds[0]);
     const fields = embed.data.fields ?? [];
     const idx = fields.findIndex((f) => f.name === '🎥 Bewijs');
+    const existing = idx >= 0 ? fields[idx].value?.trim() || '' : '';
+    const hasPlaceholder = existing === 'Geen bewijs geüpload' || existing === 'Zie uploads';
+    const nextValue = hasPlaceholder || !existing ? evidenceText : `${existing}\n${evidenceText}`;
     if (idx >= 0) {
-      const existing = fields[idx].value?.trim() || '';
-      const hasPlaceholder = existing === 'Geen bewijs geüpload';
-      fields[idx].value = hasPlaceholder ? attachmentLinks : `${existing}\n${attachmentLinks}`;
+      fields[idx].value = nextValue;
+    } else {
+      fields.push({ name: '🎥 Bewijs', value: nextValue || 'Geen bewijs geüpload' });
     }
     embed.setFields(fields);
 
@@ -68,7 +98,7 @@ function registerMessageHandlers(client, { config, state }) {
       if (oldPrompt?.deletable) await oldPrompt.delete().catch(() => {});
     }
     const prompt = await message.reply({
-      content: 'Wil je nog meer beelden uploaden?',
+      content: 'Wil je nog meer beelden uploaden of links delen?',
       components: [buildEvidencePromptRow(pendingType)]
     });
     scheduleMessageDeletion(client, autoDeleteMs, message.id, message.channelId);

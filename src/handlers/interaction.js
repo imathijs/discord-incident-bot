@@ -50,7 +50,9 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
       .setCustomId('beschrijving')
       .setLabel('Beschrijving van het incident')
       .setStyle(TextInputStyle.Paragraph)
-      .setRequired(true);
+      .setPlaceholder('Max 4000 tekens (Discord-limiet)')
+      .setRequired(true)
+      .setMaxLength(4000);
     if (description != null) descriptionInput.setValue(description);
 
     modal.addComponents(
@@ -94,7 +96,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
     const raceName = pending.raceName;
     const round = pending.round;
     const description = pending.description;
-    const evidence = 'Zie uploads';
+    const evidence = 'Zie uploads/links';
 
     if (!raceName || !round || !description) {
       return interaction.editReply({
@@ -212,7 +214,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
       await dmChannel.send(
         '✅ Je incident is verzonden naar de stewards.\n' +
           `Incidentnummer: **${incidentNumber}**\n` +
-          `Upload je bewijsmateriaal voor **${incidentNumber}** in dit kanaal binnen 5 minuten om het automatisch toe te voegen.`
+          `Upload of stuur een link naar je bewijsmateriaal voor **${incidentNumber}** in dit kanaal binnen 5 minuten om het automatisch toe te voegen.`
       );
     } catch {}
 
@@ -229,7 +231,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
       content:
         '✅ Je incident is verzonden naar de stewards!\n' +
         `Incidentnummer: **${incidentNumber}**\n` +
-        `Upload je bewijsmateriaal voor **${incidentNumber}** in ${evidenceLocation} binnen 5 minuten om het automatisch toe te voegen.`
+        `Upload of stuur een link naar je bewijsmateriaal voor **${incidentNumber}** in ${evidenceLocation} binnen 5 minuten om het automatisch toe te voegen.`
     });
   };
 
@@ -710,7 +712,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           const dmChannel = await interaction.user.createDM();
           await dmChannel.send(
             '✅ Je wederwoord is doorgestuurd naar de stewards.\n' +
-              'Upload je bewijsmateriaal in dit kanaal binnen 5 minuten om het automatisch toe te voegen.'
+              'Upload of stuur een link naar je bewijsmateriaal in dit kanaal binnen 5 minuten om het automatisch toe te voegen.'
           );
         } catch {}
 
@@ -735,6 +737,9 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           }
 
           if (id === 'incident_review_edit') {
+            if (interaction.message?.deletable) {
+              await interaction.message.delete().catch(() => {});
+            }
             await interaction.showModal(
               buildIncidentModal({
                 raceName: pending.raceName,
@@ -785,8 +790,8 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
             return interaction.reply({
               content:
                 pendingType === 'appeal'
-                  ? `✅ Je kunt extra beelden uploaden${incidentLabel} voor je wederwoord. Upload binnen 5 minuten.`
-                  : `✅ Je kunt extra beelden uploaden${incidentLabel}. Upload binnen 5 minuten.`,
+                  ? `✅ Je kunt extra beelden uploaden of links delen${incidentLabel} voor je wederwoord. Upload of stuur binnen 5 minuten.`
+                  : `✅ Je kunt extra beelden uploaden of links delen${incidentLabel}. Upload of stuur binnen 5 minuten.`,
               ephemeral: true
             });
           }
