@@ -29,7 +29,7 @@ function buildTallyText(votes, prefix = '') {
     `CAT4: ${catCount.cat4}`,
     `CAT5: ${catCount.cat5}`,
     ``,
-    `Netto strafpunten: **${penaltyPoints}**`
+    `Strafmaat: ${penaltyPoints}`
   ];
 
   return lines.join('\n');

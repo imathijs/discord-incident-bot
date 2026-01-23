@@ -27,9 +27,64 @@ const isAllowedEvidenceUrl = (url) => {
 
 function registerMessageHandlers(client, { config, state }) {
   const { pendingEvidence, activeIncidents, autoDeleteMs } = state;
+  const incidentChatChannelId = config.incidentChatChannelId;
 
   client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
+
+    if (
+      incidentChatChannelId &&
+      message.mentions.has(client.user) &&
+      message.channelId !== incidentChatChannelId
+    ) {
+      const mentionRegex = new RegExp(`<@!?${client.user.id}>`, 'g');
+      const cleanedContent = (message.content || '').replace(mentionRegex, '').trim();
+      const incidentChannel = await client.channels.fetch(incidentChatChannelId).catch(() => null);
+      if (incidentChannel?.isTextBased()) {
+        const attachmentLinks = [...message.attachments.values()].map((a) => a.url);
+        const messageLink = message.guildId
+          ? `https://discord.com/channels/${message.guildId}/${message.channelId}/${message.id}`
+          : null;
+        const locationLabel = message.guildId ? `<#${message.channelId}>` : 'DM';
+        const forwardedEmbed = new EmbedBuilder()
+          .setColor('#1ABC9C')
+          .setTitle('📨 Nieuw bericht voor Race Incident Bot')
+          .setDescription(
+            [
+              `Afzender: **${message.author.tag}**`,
+              `Locatie: ${locationLabel}`,
+              messageLink ? `Bericht: ${messageLink}` : null,
+              '',
+              cleanedContent ? cleanedContent : '*Geen tekst meegeleverd.*'
+            ]
+              .filter(Boolean)
+              .join('\n')
+          )
+          .setTimestamp();
+
+        if (attachmentLinks.length > 0) {
+          forwardedEmbed.addFields({
+            name: '📎 Bijlagen',
+            value: attachmentLinks.join('\n')
+          });
+        }
+
+        await incidentChannel.send({
+          embeds: [forwardedEmbed],
+          allowedMentions: { parse: [] }
+        });
+      }
+
+      const confirmationText = '✅ Je bericht is privé doorgestuurd naar #incident-chat.';
+      try {
+        await message.author.send({ content: confirmationText });
+      } catch {}
+
+      if (message.deletable) {
+        await message.delete().catch(() => {});
+      }
+    }
+
     const urls = extractUrls(message.content);
     const allowedUrls = urls.filter(isAllowedEvidenceUrl);
     if (message.attachments.size === 0 && allowedUrls.length === 0) return;

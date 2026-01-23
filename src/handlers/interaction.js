@@ -245,7 +245,14 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
       {
         name: 'raceincident',
         description: 'Plaats een knop voor incident meldingen (in het meld-kanaal)',
-        default_member_permissions: PermissionFlagsBits.Administrator.toString()
+        default_member_permissions: PermissionFlagsBits.Administrator.toString(),
+        options: [
+          {
+            type: ApplicationCommandOptionType.Subcommand,
+            name: 'indienen',
+            description: 'Plaats een knop voor incident meldingen (in het meld-kanaal)'
+          }
+        ]
       },
       {
         name: 'raceindent',
@@ -275,6 +282,11 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
     try {
       // 1) Slash command: knop plaatsen
       if (interaction.isChatInputCommand() && interaction.commandName === 'raceincident') {
+        const subcommand = interaction.options.getSubcommand();
+        if (subcommand !== 'indienen') {
+          return interaction.reply({ content: '❌ Onbekende subcommand.', ephemeral: true });
+        }
+
         const reportButton = new ButtonBuilder()
           .setCustomId('report_incident')
           .setLabel('🚨 Meld Incident')
@@ -289,22 +301,21 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
 
         const embed = new EmbedBuilder()
           .setColor('#FF0000')
-          .setTitle('Race Incident Meldingssysteem')
+          .setTitle('DRE - Race Incident Meldingssysteem')
           .setDescription(
             [
-              '**Incident melden bij DRE**',
-              '',
               'Wil je een incident melden bij de stewards van DRE?',
               'Klik dan op de knop **Meld Incident**.',
               '',
               'Je doorloopt de stappen in dit kanaal.',
-              'Na het indienen ontvang je een DM voor bewijsmateriaal.',
+              'Na het indienen ontvang je een DM om bewijsmateriaal te delen via een',
+              'YouTube-link of door het zelf te uploaden.',
               '',
               '⚠️ **Belangrijk**',
               'Zonder bewijsmateriaal kunnen wij een incident niet beoordelen.',
               'Zorg er daarom voor dat je bewijs beschikbaar hebt, zoals:',
-              '- een YouTube-video',
-              '- losse videobestanden',
+              '- een opname van het incident geplaatst op YouTube.',
+              '- losse opname van het incident. Je upload het bestand via discord. ',
               '',
               '❓ **Niet eens met een beslissing?**',
               'Gebruik de knop **Wederwoord incident**',
@@ -1052,23 +1063,31 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         if (resolvedChannel) {
           const reportEmbed = new EmbedBuilder()
             .setColor('#2ECC71')
-            .setTitle(`📄 Incident Afgehandeld - ${incidentData.incidentNumber || 'Onbekend'}`)
+            .setTitle(`Incident Afgehandeld • ${incidentData.incidentNumber || 'Onbekend'}`)
             .setDescription('Uitslag van het stewardsoverleg.')
             .addFields(
-              { name: '🔢 Incidentnummer', value: incidentData.incidentNumber || 'Onbekend', inline: true },
-              { name: '🏁 Race', value: incidentData.raceName, inline: true },
-              { name: '🔢 Ronde', value: incidentData.round, inline: true },
-              { name: '👤 Ingediend door', value: incidentData.reporter || 'Onbekend', inline: true },
-              { name: '⚠️ Rijder', value: incidentData.guiltyDriver, inline: true },
-              { name: '📌 Reden', value: incidentData.reason || 'Onbekend' },
-              { name: '⚖️ Eindoordeel (Dader)', value: `**${decision}**`, inline: true },
-              { name: '🎯 Strafpunten (Dader)', value: `**${penaltyPoints}**`, inline: true },
-              { name: '⚖️ Eindoordeel (Indiener)', value: `**${reporterDecision}**`, inline: true },
-              { name: '🎯 Strafpunten (Indiener)', value: `**${reporterPenaltyPoints}**`, inline: true },
+              {
+                name: '🧾 Samenvatting',
+                value:
+                  `Incidentnummer: **${incidentData.incidentNumber || 'Onbekend'}**\n` +
+                  `Race: **${incidentData.raceName}**  •  Ronde: **${incidentData.round}**\n` +
+                  `Ingediend door: **${incidentData.reporter || 'Onbekend'}**\n` +
+                  `Rijder: **${incidentData.guiltyDriver}**\n` +
+                  `Reden: **${incidentData.reason || 'Onbekend'}**`
+              },
+              {
+                name: '⚖️ Besluit',
+                value:
+                  `Dader: **${decision}**  •  Strafmaat: **${penaltyPoints}**\n` +
+                  `Indiener: **${reporterDecision}**  •  Strafmaat: **${reporterPenaltyPoints}**`
+              },
+              { name: '—', value: '—' },
               { name: '📝 Toelichting', value: finalText },
               {
                 name: '🗣️ Wederwoord',
-                value: 'Niet eens met het besluit?\nVerstuur dan een DM via Race Incident Bot met vermelding onder het incident nummer.\n"INC-<nummer> - je verhaal.."'
+                value:
+                  'Niet eens met het besluit? Verstuur dan een bericht via kanaal #incident-melden en klik op Wederwoord met vermelding onder het incident nummer.' +
+                  ''
               }
             )
             .setTimestamp();
