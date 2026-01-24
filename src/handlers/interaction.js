@@ -244,20 +244,14 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
     const commands = [
       {
         name: 'raceincident',
-        description: 'Plaats een knop voor incident meldingen (in het meld-kanaal)',
+        description: 'Incident acties',
         default_member_permissions: PermissionFlagsBits.Administrator.toString(),
         options: [
           {
             type: ApplicationCommandOptionType.Subcommand,
-            name: 'indienen',
+            name: 'melden',
             description: 'Plaats een knop voor incident meldingen (in het meld-kanaal)'
-          }
-        ]
-      },
-      {
-        name: 'raceindent',
-        description: 'Incident acties voor rijders',
-        options: [
+          },
           {
             type: ApplicationCommandOptionType.Subcommand,
             name: 'neemterug',
@@ -283,56 +277,54 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
       // 1) Slash command: knop plaatsen
       if (interaction.isChatInputCommand() && interaction.commandName === 'raceincident') {
         const subcommand = interaction.options.getSubcommand();
-        if (subcommand !== 'indienen') {
-          return interaction.reply({ content: '❌ Onbekende subcommand.', ephemeral: true });
+        if (subcommand === 'melden') {
+          if (interaction.channelId !== config.reportChannelId) {
+            return interaction.reply({
+              content: '❌ Incident melden kan alleen in de ingestelde forum-thread.',
+              ephemeral: true
+            });
+          }
+
+          const reportButton = new ButtonBuilder()
+            .setCustomId('report_incident')
+            .setLabel('🚨 Meld Incident')
+            .setStyle(ButtonStyle.Danger);
+
+          const appealButton = new ButtonBuilder()
+            .setCustomId('appeal_incident')
+            .setLabel('Wederwoord incident')
+            .setStyle(ButtonStyle.Primary);
+
+          const row = new ActionRowBuilder().addComponents(reportButton, appealButton);
+
+          const embed = new EmbedBuilder()
+            .setColor('#FF0000')
+            .setTitle('DRE - Race Incident Meldingssysteem')
+            .setDescription(
+              [
+                'Wil je een incident melden bij de stewards van DRE?',
+                'Klik dan op de knop **Meld Incident**.',
+                '',
+                'Je doorloopt de stappen in dit kanaal.',
+                'Na het indienen ontvang je een DM om bewijsmateriaal te delen via een',
+                'YouTube-link of door het zelf te uploaden.',
+                '',
+                '⚠️ **Belangrijk**',
+                'Zonder bewijsmateriaal kunnen wij een incident niet beoordelen.',
+                'Zorg er daarom voor dat je bewijs beschikbaar hebt, zoals:',
+                '- een opname van het incident geplaatst op YouTube.',
+                '- losse opname van het incident. Je upload het bestand via discord. ',
+                '',
+                '❓ **Niet eens met een beslissing?**',
+                'Gebruik de knop **Wederwoord incident**',
+                'om jouw reactie of bezwaar toe te voegen.'
+              ].join('\n')
+            );
+
+          await interaction.reply({ embeds: [embed], components: [row] });
+          return;
         }
 
-        const reportButton = new ButtonBuilder()
-          .setCustomId('report_incident')
-          .setLabel('🚨 Meld Incident')
-          .setStyle(ButtonStyle.Danger);
-
-        const appealButton = new ButtonBuilder()
-          .setCustomId('appeal_incident')
-          .setLabel('Wederwoord incident')
-          .setStyle(ButtonStyle.Primary);
-
-        const row = new ActionRowBuilder().addComponents(reportButton, appealButton);
-
-        const embed = new EmbedBuilder()
-          .setColor('#FF0000')
-          .setTitle('DRE - Race Incident Meldingssysteem')
-          .setDescription(
-            [
-              'Wil je een incident melden bij de stewards van DRE?',
-              'Klik dan op de knop **Meld Incident**.',
-              '',
-              'Je doorloopt de stappen in dit kanaal.',
-              'Na het indienen ontvang je een DM om bewijsmateriaal te delen via een',
-              'YouTube-link of door het zelf te uploaden.',
-              '',
-              '⚠️ **Belangrijk**',
-              'Zonder bewijsmateriaal kunnen wij een incident niet beoordelen.',
-              'Zorg er daarom voor dat je bewijs beschikbaar hebt, zoals:',
-              '- een opname van het incident geplaatst op YouTube.',
-              '- losse opname van het incident. Je upload het bestand via discord. ',
-              '',
-              '❓ **Niet eens met een beslissing?**',
-              'Gebruik de knop **Wederwoord incident**',
-              'om jouw reactie of bezwaar toe te voegen.'
-            ].join('\n')
-          );
-
-        await interaction.reply({ embeds: [embed], components: [row] });
-        return;
-      }
-
-      // 1b) Slash command: incident terugnemen (rijders)
-      if (
-        interaction.isChatInputCommand() &&
-        interaction.commandName === 'raceindent'
-      ) {
-        const subcommand = interaction.options.getSubcommand();
         if (subcommand !== 'neemterug') {
           return interaction.reply({ content: '❌ Onbekende subcommand.', ephemeral: true });
         }
@@ -358,6 +350,13 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         const [messageId, incidentData] = matchEntry;
         const reporterId = incidentData.reporterId;
         const reporterTag = incidentData.reporter;
+
+        if (interaction.user.id !== reporterId) {
+          return interaction.reply({
+            content: '❌ Alleen de indiener kan dit incident terugnemen.',
+            ephemeral: true
+          });
+        }
         const isReporter =
           (reporterId && reporterId === interaction.user.id) ||
           (!reporterId && reporterTag && reporterTag === interaction.user.tag);
@@ -446,16 +445,25 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           });
         }
 
-        const reasonSelect = new StringSelectMenuBuilder()
-          .setCustomId('incident_reason')
-          .setPlaceholder('Kies de reden van het incident')
-          .addOptions(incidentReasons);
-
-        const reasonRow = new ActionRowBuilder().addComponents(reasonSelect);
+        const reasonRows = [];
+        const reasonsPerRow = 5;
+        for (let i = 0; i < incidentReasons.length; i += reasonsPerRow) {
+          const row = new ActionRowBuilder();
+          const slice = incidentReasons.slice(i, i + reasonsPerRow);
+          for (const reason of slice) {
+            row.addComponents(
+              new ButtonBuilder()
+                .setCustomId(`incident_reason:${reason.value}`)
+                .setLabel(reason.label)
+                .setStyle(ButtonStyle.Secondary)
+            );
+          }
+          reasonRows.push(row);
+        }
 
         await interaction.reply({
           content: 'Kies de reden van het incident. Daarna kun je de schuldige selecteren.',
-          components: [reasonRow],
+          components: reasonRows,
           ephemeral: true
         });
         return;
@@ -518,7 +526,36 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         return;
       }
 
-      // 3) Dropdown submit: reden bewaren en vraag om schuldige (User Select)
+      // 3) Optielijst submit: reden bewaren en vraag om schuldige (User Select)
+      if (interaction.isButton() && interaction.customId.startsWith('incident_reason:')) {
+        if (!interaction.guildId) {
+          return interaction.reply({ content: '❌ Meld een incident via het meld-kanaal.', ephemeral: true });
+        }
+
+        const reasonValue = interaction.customId.split(':')[1] || '';
+        pendingIncidentReports.set(interaction.user.id, {
+          reasonValue,
+          reporterTag: interaction.user.tag,
+          reporterId: interaction.user.id,
+          guildId: interaction.guildId,
+          expiresAt: Date.now() + incidentReportWindowMs
+        });
+
+        const userSelect = new UserSelectMenuBuilder()
+          .setCustomId('incident_culprit_select')
+          .setPlaceholder('Selecteer de schuldige rijder')
+          .setMaxValues(1);
+
+        const row = new ActionRowBuilder().addComponents(userSelect);
+
+        await interaction.update({
+          content: 'Wie is de tegenpartij/schuldige?',
+          components: [row]
+        });
+        return;
+      }
+
+      // 3b) Dropdown submit: reden bewaren en vraag om schuldige (User Select)
       if (interaction.isStringSelectMenu() && interaction.customId === 'incident_reason') {
         if (!interaction.guildId) {
           return interaction.reply({ content: '❌ Meld een incident via het meld-kanaal.', ephemeral: true });
@@ -866,7 +903,8 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
             .setCustomId('eindoordeel')
             .setLabel('Eindoordeel (vrije tekst)')
             .setStyle(TextInputStyle.Paragraph)
-            .setRequired(true);
+            .setRequired(true)
+            .setMaxLength(4000);
 
           modal.addComponents(new ActionRowBuilder().addComponents(decisionInput));
 
@@ -1041,7 +1079,10 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         const resultEmbed = new EmbedBuilder()
           .setColor('#00FF00')
           .setTitle('✅ Steward Besluit')
-          .setDescription(`👤 Ingediend door: ${incidentData.reporter || 'Onbekend'}`)
+          .setDescription(
+            `👤 Ingediend door: ${incidentData.reporter || 'Onbekend'}\n\n` +
+              `**Eindoordeel**\n${finalText}`
+          )
           .addFields(
             { name: '🔢 Incidentnummer', value: incidentData.incidentNumber || 'Onbekend', inline: true },
             { name: '🏁 Race', value: incidentData.raceName, inline: true },
@@ -1051,8 +1092,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
             { name: '🎯 Strafpunten (Dader)', value: `**${penaltyPoints}**`, inline: true },
             { name: '📊 Stemresultaat (Indiener)', value: `\`\`\`\n${reporterTally}\n\`\`\`` },
             { name: '⚖️ Eindoordeel (Indiener)', value: `**${reporterDecision}**`, inline: true },
-            { name: '🎯 Strafpunten (Indiener)', value: `**${reporterPenaltyPoints}**`, inline: true },
-            { name: '📝 Toelichting', value: finalText }
+            { name: '🎯 Strafpunten (Indiener)', value: `**${reporterPenaltyPoints}**`, inline: true }
           )
           .setTimestamp();
 
@@ -1064,7 +1104,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           const reportEmbed = new EmbedBuilder()
             .setColor('#2ECC71')
             .setTitle(`Incident Afgehandeld • ${incidentData.incidentNumber || 'Onbekend'}`)
-            .setDescription('Uitslag van het stewardsoverleg.')
+            .setDescription(`Uitslag van het stewardsoverleg.\n\n**Eindoordeel**\n${finalText}`)
             .addFields(
               {
                 name: '🧾 Samenvatting',
@@ -1082,7 +1122,6 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
                   `Indiener: **${reporterDecision}**  •  Strafmaat: **${reporterPenaltyPoints}**`
               },
               { name: '—', value: '—' },
-              { name: '📝 Toelichting', value: finalText },
               {
                 name: '🗣️ Wederwoord',
                 value:
