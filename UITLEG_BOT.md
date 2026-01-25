@@ -31,3 +31,19 @@ Belangrijk:
 - Je mag je reactie maar één keer indienen.
 - Reactie moet binnen 2 dagen na het incident worden ingestuurd.
 
+## Infographic (Mermaid)
+```mermaid
+flowchart LR
+  A[Incident melder] --> B[Meld incident via knop]
+  B --> C[Kies reden + schuldige]
+  C --> D[Vul race/ronde/beschrijving]
+  D --> E[Bevestig + upload bewijs (DM)]
+  E --> F[Stewards kanaal]
+  F --> G[Stemmen + eindoordeel]
+  G --> H[Resolved kanaal]
+  H --> I[Schuldige: Wederwoord indienen]
+  I --> J[Reactie naar stewards]
+```
+
+## Infographic (SVG)
+Bestand: `infographic.svg`

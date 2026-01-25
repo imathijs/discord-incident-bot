@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <defs>
+    <style>
+      .box{fill:#f8f9fb;stroke:#2c3e50;stroke-width:2;rx:12;ry:12}
+      .title{font:700 20px Arial, sans-serif;fill:#2c3e50}
+      .text{font:14px Arial, sans-serif;fill:#2c3e50}
+      .arrow{stroke:#2c3e50;stroke-width:2;fill:none;marker-end:url(#arrowhead)}
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#2c3e50"/>
+    </marker>
+  </defs>
+
+  <text x="40" y="50" class="title">DRE Race Incident Bot – Procesoverzicht</text>
+
+  <!-- Reporter flow -->
+  <rect x="40" y="90" width="520" height="180" class="box"/>
+  <text x="60" y="120" class="title">Incident melder</text>
+  <text x="60" y="150" class="text">1. Meld incident via knop</text>
+  <text x="60" y="170" class="text">2. Kies reden + schuldige</text>
+  <text x="60" y="190" class="text">3. Vul race/ronde/beschrijving</text>
+  <text x="60" y="210" class="text">4. Bevestig en upload bewijs (DM)</text>
+
+  <!-- Stewards flow -->
+  <rect x="640" y="90" width="520" height="180" class="box"/>
+  <text x="660" y="120" class="title">Stewards</text>
+  <text x="660" y="150" class="text">1. Ontvangen incident in stewards kanaal</text>
+  <text x="660" y="170" class="text">2. Stemmen op categorie + straf</text>
+  <text x="660" y="190" class="text">3. Publiceren eindoordeel</text>
+
+  <!-- Guilty flow -->
+  <rect x="40" y="320" width="520" height="180" class="box"/>
+  <text x="60" y="350" class="title">Schuldige rijder</text>
+  <text x="60" y="380" class="text">1. Ziet besluit in resolved kanaal</text>
+  <text x="60" y="400" class="text">2. Klikt op “Wederwoord indienen”</text>
+  <text x="60" y="420" class="text">3. Stuurt éénmalig reactie (binnen 2 dagen)</text>
+
+  <!-- Resolved flow -->
+  <rect x="640" y="320" width="520" height="180" class="box"/>
+  <text x="660" y="350" class="title">Afhandeling</text>
+  <text x="660" y="380" class="text">1. Eindoordeel geplaatst in resolved kanaal</text>
+  <text x="660" y="400" class="text">2. Reactie schuldige naar stewards</text>
+
+  <!-- Arrows -->
+  <line x1="560" y1="180" x2="640" y2="180" class="arrow"/>
+  <line x1="300" y1="270" x2="300" y2="320" class="arrow"/>
+  <line x1="560" y1="410" x2="640" y2="410" class="arrow"/>
+  <line x1="900" y1="270" x2="900" y2="320" class="arrow"/>
+</svg>
