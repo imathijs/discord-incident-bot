@@ -19,6 +19,7 @@ const evidenceWindowMs = 5 * 60 * 1000;
 const incidentReportWindowMs = 5 * 60 * 1000;
 const appealWindowMs = 5 * 60 * 1000;
 const finalizeWindowMs = 5 * 60 * 1000;
+const guiltyReplyWindowMs = 2 * 24 * 60 * 60 * 1000;
 
 module.exports = {
   incidentReasons,
@@ -26,5 +27,6 @@ module.exports = {
   evidenceWindowMs,
   incidentReportWindowMs,
   appealWindowMs,
-  finalizeWindowMs
+  finalizeWindowMs,
+  guiltyReplyWindowMs
 };

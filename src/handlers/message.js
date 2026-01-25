@@ -9,6 +9,11 @@ const extractUrls = (content = '') => {
     .filter(Boolean);
 };
 
+const extractIncidentNumber = (content = '') => {
+  const match = content.match(/INC-\d+/i);
+  return match ? match[0].toUpperCase() : null;
+};
+
 const isAllowedEvidenceUrl = (url) => {
   try {
     const parsed = new URL(url);
@@ -26,11 +31,106 @@ const isAllowedEvidenceUrl = (url) => {
 };
 
 function registerMessageHandlers(client, { config, state }) {
-  const { pendingEvidence, activeIncidents, autoDeleteMs } = state;
+  const { pendingEvidence, activeIncidents, pendingGuiltyReplies, autoDeleteMs } = state;
   const incidentChatChannelId = config.incidentChatChannelId;
 
   client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
+
+    const pendingByUser = pendingGuiltyReplies.get(message.author.id);
+    if (!message.guildId && pendingByUser && typeof pendingByUser.get === 'function') {
+      const incidentFromMessage = extractIncidentNumber(message.content || '');
+      let incidentKey = incidentFromMessage;
+      let pendingEntry = incidentKey ? pendingByUser.get(incidentKey) : null;
+
+      if (!pendingEntry) {
+        if (pendingByUser.size === 1) {
+          const entry = pendingByUser.entries().next().value;
+          incidentKey = entry?.[0] || null;
+          pendingEntry = entry?.[1] || null;
+        } else if (pendingByUser.size > 1) {
+          await message.reply(
+            '❌ Meerdere incidenten open. Vermeld het incidentnummer (bijv. INC-1234) in je reactie.'
+          );
+          return;
+        }
+      }
+
+      if (pendingEntry) {
+        if (!incidentKey) {
+          incidentKey = (pendingEntry.incidentNumber || '').toUpperCase() || null;
+        }
+        if (pendingEntry.channelId && pendingEntry.channelId !== message.channelId) return;
+        if (Date.now() > pendingEntry.expiresAt) {
+          pendingByUser.delete(incidentKey);
+          if (pendingByUser.size === 0) pendingGuiltyReplies.delete(message.author.id);
+          await message.reply('⏳ Reactietermijn verlopen. Neem contact op met de stewards.');
+          return;
+        }
+        if (pendingEntry.responded) {
+          await message.reply(
+            `✅ Je reactie voor incident **${pendingEntry.incidentNumber || incidentKey}** is al ontvangen.`
+          );
+          return;
+        }
+
+        const responseText = (message.content || '').trim();
+        const attachmentLinks = [...message.attachments.values()].map((a) => a.url);
+        if (!responseText && attachmentLinks.length === 0) {
+          await message.reply('❌ Stuur een reactie of voeg een bijlage toe.');
+          return;
+        }
+
+        const voteChannel = await client.channels.fetch(config.voteChannelId).catch(() => null);
+        if (!voteChannel) {
+          await message.reply('❌ Steward-kanaal niet gevonden. Probeer later opnieuw.');
+          return;
+        }
+
+        const responseEmbed = new EmbedBuilder()
+          .setColor('#F1C40F')
+          .setTitle(`🗣️ Reactie tegenpartij - ${pendingEntry.incidentNumber || incidentKey || 'Onbekend'}`)
+          .addFields(
+            {
+              name: '🔢 Incidentnummer',
+              value: pendingEntry.incidentNumber || incidentKey || 'Onbekend',
+              inline: true
+            },
+            { name: '👤 Tegenpartij', value: message.author.tag, inline: true },
+            { name: '👤 Ingediend door', value: pendingEntry.reporterTag || 'Onbekend', inline: true },
+            { name: '🏁 Race', value: pendingEntry.raceName || 'Onbekend', inline: true },
+            { name: '🔢 Ronde', value: pendingEntry.round || 'Onbekend', inline: true },
+            { name: '📝 Reactie', value: responseText || '*Geen tekst meegeleverd.*' }
+          )
+          .setTimestamp();
+
+        if (attachmentLinks.length > 0) {
+          responseEmbed.addFields({
+            name: '📎 Bijlagen',
+            value: attachmentLinks.join('\n')
+          });
+        }
+
+        await voteChannel.send({
+          content: `<@&${config.stewardRoleId}> - Reactie tegenpartij ontvangen voor incident ${
+            pendingEntry.incidentNumber || incidentKey || 'Onbekend'
+          }`,
+          embeds: [responseEmbed]
+        });
+
+        pendingEntry.responded = true;
+        pendingEntry.respondedAt = Date.now();
+        pendingByUser.set(incidentKey, pendingEntry);
+        pendingGuiltyReplies.set(message.author.id, pendingByUser);
+
+        await message.reply(
+          `✅ Je reactie is doorgestuurd naar de stewards voor incident **${
+            pendingEntry.incidentNumber || incidentKey || 'Onbekend'
+          }**.`
+        );
+        return;
+      }
+    }
 
     if (
       incidentChatChannelId &&

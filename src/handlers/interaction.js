@@ -16,17 +16,36 @@ const {
   evidenceWindowMs,
   incidentReportWindowMs,
   appealWindowMs,
-  finalizeWindowMs
+  finalizeWindowMs,
+  guiltyReplyWindowMs
 } = require('../constants');
 const { buildTallyText, computePenaltyPoints, mostVotedCategory } = require('../utils/votes');
 const { buildEvidencePromptRow } = require('../utils/evidence');
 
 function registerInteractionHandlers(client, { config, state, generateIncidentNumber }) {
-  const { activeIncidents, pendingEvidence, pendingIncidentReports, pendingAppeals, pendingFinalizations } = state;
+  const {
+    activeIncidents,
+    pendingEvidence,
+    pendingIncidentReports,
+    pendingAppeals,
+    pendingFinalizations,
+    pendingGuiltyReplies
+  } = state;
 
   function isSteward(member) {
     return member.roles?.cache?.has(config.stewardRoleId);
   }
+
+  const removePendingGuiltyReply = (incidentNumber) => {
+    if (!incidentNumber) return;
+    const normalized = incidentNumber.toUpperCase();
+    for (const [userId, entries] of pendingGuiltyReplies.entries()) {
+      if (!entries || typeof entries.get !== 'function') continue;
+      if (entries.delete(normalized) && entries.size === 0) {
+        pendingGuiltyReplies.delete(userId);
+      }
+    }
+  };
 
   const buildIncidentModal = ({ raceName, round, description } = {}) => {
     const modal = new ModalBuilder().setCustomId('incident_modal').setTitle('Race Incident Melding');
@@ -218,6 +237,36 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
       reporter: pending.reporterTag,
       reporterId: pending.reporterId
     });
+
+    if (pending.guiltyId) {
+      try {
+        const guiltyUser = await client.users.fetch(pending.guiltyId).catch(() => null);
+        if (guiltyUser) {
+          const guiltyDm = await guiltyUser.createDM();
+          await guiltyDm.send(
+            'Er is een race incident ingediend door ' +
+              `**${pending.reporterTag || 'Onbekend'}** met het incident nummer **${incidentNumber}**.\n` +
+              `Het gaat om Race ${raceName} * Ronde ${round}.\n` +
+              'Je hebt 2 dagen de tijd om te reageren door middel van deze DM te gebruiken.\n' +
+              'DM mag maar 1x worden ingevuld en wordt toegevoegd als reactie van de tegenpartij in het stewards kanaal onder vermelding van het incident nummer.'
+          );
+
+          const normalizedIncident = incidentNumber.toUpperCase();
+          const userEntries = pendingGuiltyReplies.get(pending.guiltyId) || new Map();
+          userEntries.set(normalizedIncident, {
+            incidentNumber,
+            raceName,
+            round,
+            reporterTag: pending.reporterTag,
+            messageId: message.id,
+            channelId: guiltyDm.id,
+            expiresAt: Date.now() + guiltyReplyWindowMs,
+            responded: false
+          });
+          pendingGuiltyReplies.set(pending.guiltyId, userEntries);
+        }
+      } catch {}
+    }
 
     let evidenceChannelId = interaction.channelId;
     let evidenceLocation = 'dit kanaal';
@@ -457,6 +506,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
             pendingEvidence.delete(userId);
           }
         }
+        removePendingGuiltyReply(incidentData.incidentNumber || ticketNumber);
 
         const voteChannel = await client.channels.fetch(config.voteChannelId).catch(() => null);
         if (!voteChannel) {
@@ -1207,6 +1257,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         }
 
         activeIncidents.delete(pending.messageId);
+        removePendingGuiltyReply(incidentData.incidentNumber);
         pendingFinalizations.delete(interaction.user.id);
         return interaction.reply({ content: '✅ Incident afgehandeld!', ephemeral: true });
       }

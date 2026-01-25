@@ -8,6 +8,7 @@ function createState(config) {
     pendingIncidentReports: new Map(),
     pendingAppeals: new Map(),
     pendingFinalizations: new Map(),
+    pendingGuiltyReplies: new Map(),
     autoDeleteMs
   };
 }
