@@ -9,6 +9,7 @@ Belangrijkste velden (gebruik je eigen IDs):
 - `reportChannelId` – kanaal waar de meldknop staat (incident melden)
 - `voteChannelId` – stewards kanaal waar incidenten en stemmen verschijnen
 - `resolvedChannelId` – kanaal waar afgehandelde incidenten worden geplaatst
+- `resolvedThreadId` – thread‑ID waar het besluit te vinden is (wordt in DM gedeeld)
 - `incidentChatChannelId` – kanaal waar @bot berichten worden doorgestuurd
 - `stewardRoleId` – rol-ID van stewards (toegang / mentions)
 - `incidentCounter` – teller voor incidentnummers (`INC-xxxxx`)
@@ -95,4 +96,3 @@ Na aanpassingen in code of config:
 - Zet `DISCORD_TOKEN` in `.env`
 - Stel tijden in via `src/constants.js`
 - Pas teksten aan in `src/handlers/interaction.js` / `src/handlers/message.js`
-

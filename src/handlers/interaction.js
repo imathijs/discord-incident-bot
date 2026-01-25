@@ -1266,6 +1266,18 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           await resolvedChannel.send({ embeds: [reportEmbed], components: [appealRow] });
         }
 
+        const resolvedThreadId = config.resolvedThreadId || config.resolvedChannelId;
+        const dmText =
+          `Incident ticket ${incidentData.incidentNumber || 'Onbekend'} is afgehandeld. ` +
+          `Het besluit staat in kanaal Incidenten > Afgehandeld <#${resolvedThreadId}>`;
+        const dmTargets = [incidentData.reporterId, incidentData.guiltyId].filter(Boolean);
+        for (const userId of dmTargets) {
+          try {
+            const user = await client.users.fetch(userId).catch(() => null);
+            if (user) await user.send(dmText);
+          } catch {}
+        }
+
         activeIncidents.delete(pending.messageId);
         removePendingGuiltyReply(incidentData.incidentNumber);
         pendingFinalizations.delete(interaction.user.id);
