@@ -82,6 +82,37 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
     return modal;
   };
 
+  const buildAppealModal = ({ incidentNumber } = {}) => {
+    const modal = new ModalBuilder().setCustomId('appeal_modal').setTitle('Wederwoord incident');
+
+    const incidentInput = new TextInputBuilder()
+      .setCustomId('incident_nummer')
+      .setLabel('Incidentnummer (bijv. INC-1234)')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+    if (incidentNumber) incidentInput.setValue(incidentNumber);
+
+    const storyInput = new TextInputBuilder()
+      .setCustomId('verhaal')
+      .setLabel('Jouw verhaal')
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+
+    const evidenceInput = new TextInputBuilder()
+      .setCustomId('bewijs_links')
+      .setLabel('Links naar beelden (optioneel)')
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(false);
+
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(incidentInput),
+      new ActionRowBuilder().addComponents(storyInput),
+      new ActionRowBuilder().addComponents(evidenceInput)
+    );
+
+    return modal;
+  };
+
   const buildIncidentReviewEmbed = ({
     incidentNumber,
     raceName,
@@ -232,6 +263,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
       incidentNumber,
       raceName,
       round,
+      guiltyId: pending.guiltyId,
       guiltyDriver,
       reason: reasonLabel,
       reporter: pending.reporterTag,
@@ -364,41 +396,34 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
             });
           }
 
-          const reportButton = new ButtonBuilder()
-            .setCustomId('report_incident')
-            .setLabel('🚨 Meld Incident')
-            .setStyle(ButtonStyle.Danger);
+        const reportButton = new ButtonBuilder()
+          .setCustomId('report_incident')
+          .setLabel('🚨 Meld Incident')
+          .setStyle(ButtonStyle.Danger);
 
-          const appealButton = new ButtonBuilder()
-            .setCustomId('appeal_incident')
-            .setLabel('Wederwoord incident')
-            .setStyle(ButtonStyle.Primary);
+        const row = new ActionRowBuilder().addComponents(reportButton);
 
-          const row = new ActionRowBuilder().addComponents(reportButton, appealButton);
-
-          const embed = new EmbedBuilder()
-            .setColor('#FF0000')
-            .setTitle('DRE - Race Incident Meldingssysteem')
-            .setDescription(
-              [
-                'Wil je een incident melden bij de stewards van DRE?',
-                'Klik dan op de knop **Meld Incident**.',
-                '',
-                'Je doorloopt de stappen in dit kanaal.',
-                'Na het indienen ontvang je een DM om bewijsmateriaal te delen via een',
-                'YouTube-link of door het zelf te uploaden.',
-                '',
-                '⚠️ **Belangrijk**',
-                'Zonder bewijsmateriaal kunnen wij een incident niet beoordelen.',
-                'Zorg er daarom voor dat je bewijs beschikbaar hebt, zoals:',
-                '- een opname van het incident geplaatst op YouTube.',
-                '- losse opname van het incident. Je upload het bestand via discord. ',
-                '',
-                '❓ **Niet eens met een beslissing?**',
-                'Gebruik de knop **Wederwoord incident**',
-                'om jouw reactie of bezwaar toe te voegen.'
-              ].join('\n')
-            );
+        const embed = new EmbedBuilder()
+          .setColor('#FF0000')
+          .setTitle('DRE - Race Incident Meldingssysteem')
+          .setDescription(
+            [
+              'Wil je een incident melden bij de stewards van DRE?',
+              'Klik dan op de knop **Meld Incident**.',
+              '',
+              'Je doorloopt de stappen in dit kanaal.',
+              'Na het indienen ontvang je een DM om bewijsmateriaal te delen via een',
+              'YouTube-link of door het zelf te uploaden.',
+              '',
+              'De tegenpartij zal een DM ontvangen om zijn visie op het incident toe te lichten.',
+              '',
+              '⚠️ **Belangrijk**',
+              'Zonder bewijsmateriaal kunnen wij een incident niet beoordelen.',
+              'Zorg er daarom voor dat je bewijs beschikbaar hebt, zoals:',
+              '- een opname van het incident geplaatst op YouTube.',
+              '- losse opname van het incident. Je upload het bestand via discord.'
+            ].join('\n')
+          );
 
           await interaction.reply({ embeds: [embed], components: [row] });
           return;
@@ -603,60 +628,29 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         return;
       }
 
-      // 2b) Wederwoord-knop: start in DM
-      if (interaction.isButton() && interaction.customId === 'appeal_incident') {
-        if (interaction.channelId !== config.reportChannelId) {
+      // 2c) Wederwoord-knop vanuit afgehandeld incident
+      if (interaction.isButton() && interaction.customId.startsWith('appeal_resolved:')) {
+        const [, incidentNumberRaw, guiltyId] = interaction.customId.split(':');
+        const incidentNumber = incidentNumberRaw || '';
+        if (!guiltyId) {
           return interaction.reply({
-            content: '❌ Wederwoord indienen kan alleen in het meld-kanaal.',
+            content: '❌ Kan schuldige rijder niet bepalen.',
             ephemeral: true
           });
         }
-
-        try {
-          const dmChannel = await interaction.user.createDM();
-          pendingAppeals.set(interaction.user.id, {
-            dmChannelId: dmChannel.id,
-            expiresAt: Date.now() + appealWindowMs
-          });
-          await dmChannel.send({
-            content: 'Je kunt hier je wederwoord indienen. Vul het formulier in dat zo verschijnt.'
-          });
-
-          const modal = new ModalBuilder()
-            .setCustomId('appeal_modal')
-            .setTitle('Wederwoord incident');
-
-          const incidentInput = new TextInputBuilder()
-            .setCustomId('incident_nummer')
-            .setLabel('Incidentnummer (bijv. INC-1234)')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true);
-
-          const storyInput = new TextInputBuilder()
-            .setCustomId('verhaal')
-            .setLabel('Jouw verhaal')
-            .setStyle(TextInputStyle.Paragraph)
-            .setRequired(true);
-
-          const evidenceInput = new TextInputBuilder()
-            .setCustomId('bewijs_links')
-            .setLabel('Links naar beelden (optioneel)')
-            .setStyle(TextInputStyle.Paragraph)
-            .setRequired(false);
-
-          modal.addComponents(
-            new ActionRowBuilder().addComponents(incidentInput),
-            new ActionRowBuilder().addComponents(storyInput),
-            new ActionRowBuilder().addComponents(evidenceInput)
-          );
-
-          await interaction.showModal(modal);
-        } catch {
+        if (interaction.user.id !== guiltyId) {
           return interaction.reply({
-            content: '❌ Ik kan je geen DM sturen. Zet je DM open en probeer opnieuw.',
+            content: '❌ Alleen de schuldige rijder kan dit wederwoord indienen.',
             ephemeral: true
           });
         }
+        pendingAppeals.set(interaction.user.id, {
+          expiresAt: Date.now() + appealWindowMs,
+          incidentNumber,
+          allowedGuiltyId: guiltyId,
+          source: 'resolved'
+        });
+        await interaction.showModal(buildAppealModal({ incidentNumber }));
         return;
       }
 
@@ -798,8 +792,13 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           pendingAppeals.delete(interaction.user.id);
           return interaction.reply({ content: '❌ Tijd verlopen. Klik opnieuw op de knop.', ephemeral: true });
         }
+        if (pending.allowedGuiltyId && pending.allowedGuiltyId !== interaction.user.id) {
+          pendingAppeals.delete(interaction.user.id);
+          return interaction.reply({ content: '❌ Alleen de schuldige rijder kan dit wederwoord indienen.', ephemeral: true });
+        }
 
-        const incidentNumber = interaction.fields.getTextInputValue('incident_nummer').trim();
+        const incidentNumberInput = interaction.fields.getTextInputValue('incident_nummer').trim();
+        const incidentNumber = pending.incidentNumber || incidentNumberInput;
         const story = interaction.fields.getTextInputValue('verhaal');
         const evidenceLinks = interaction.fields.getTextInputValue('bewijs_links') || 'Geen bewijs geüpload';
 
@@ -824,34 +823,40 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           embeds: [appealEmbed]
         });
 
-        pendingEvidence.set(interaction.user.id, {
-          messageId: appealMessage.id,
-          channelId: pending.dmChannelId,
-          expiresAt: Date.now() + evidenceWindowMs,
-          type: 'appeal',
-          incidentNumber,
-          botMessageIds: []
-        });
+        if (pending.dmChannelId) {
+          pendingEvidence.set(interaction.user.id, {
+            messageId: appealMessage.id,
+            channelId: pending.dmChannelId,
+            expiresAt: Date.now() + evidenceWindowMs,
+            type: 'appeal',
+            incidentNumber,
+            botMessageIds: []
+          });
+        }
 
         pendingAppeals.delete(interaction.user.id);
 
-        try {
-          const dmChannel = await interaction.user.createDM();
-          const dmIntro = await dmChannel.send(
-            '✅ Je wederwoord is doorgestuurd naar de stewards.\n' +
-              'Upload of stuur een link naar je bewijsmateriaal in dit kanaal binnen 5 minuten om het automatisch toe te voegen.'
-          );
-          const current = pendingEvidence.get(interaction.user.id);
-          if (current) {
-            pendingEvidence.set(interaction.user.id, {
-              ...current,
-              botMessageIds: [...(current.botMessageIds || []), dmIntro.id]
-            });
-          }
-        } catch {}
+        if (pending.dmChannelId) {
+          try {
+            const dmChannel = await interaction.user.createDM();
+            const dmIntro = await dmChannel.send(
+              '✅ Je wederwoord is doorgestuurd naar de stewards.\n' +
+                'Upload of stuur een link naar je bewijsmateriaal in dit kanaal binnen 5 minuten om het automatisch toe te voegen.'
+            );
+            const current = pendingEvidence.get(interaction.user.id);
+            if (current) {
+              pendingEvidence.set(interaction.user.id, {
+                ...current,
+                botMessageIds: [...(current.botMessageIds || []), dmIntro.id]
+              });
+            }
+          } catch {}
+        }
 
         return interaction.reply({
-          content: '✅ Wederwoord ontvangen! Check je DM voor eventuele beelden.',
+          content: pending.dmChannelId
+            ? '✅ Wederwoord ontvangen! Check je DM voor eventuele beelden.'
+            : '✅ Wederwoord ontvangen! Het is doorgestuurd naar de stewards.',
           ephemeral: true
         });
       }
@@ -1248,12 +1253,17 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
               {
                 name: '🗣️ Wederwoord',
                 value:
-                  'Niet eens met het besluit? Verstuur dan een bericht via kanaal #incident-melden en klik op Wederwoord met vermelding onder het incident nummer.' +
-                  ''
+                  'Niet eens met dit besluit? Klik hier om je reactie te versturen.'
               }
             )
             .setTimestamp();
-          await resolvedChannel.send({ embeds: [reportEmbed] });
+          const appealButton = new ButtonBuilder()
+            .setCustomId(`appeal_resolved:${incidentData.incidentNumber || 'ONBEKEND'}:${incidentData.guiltyId || ''}`)
+            .setLabel('Wederwoord indienen')
+            .setStyle(ButtonStyle.Primary);
+          if (!incidentData.guiltyId) appealButton.setDisabled(true);
+          const appealRow = new ActionRowBuilder().addComponents(appealButton);
+          await resolvedChannel.send({ embeds: [reportEmbed], components: [appealRow] });
         }
 
         activeIncidents.delete(pending.messageId);
