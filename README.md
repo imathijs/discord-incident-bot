@@ -4,16 +4,17 @@ Deze Discord‑bot ondersteunt het volledige race‑incident proces: melden, ste
 
 ## Wat doet de bot?
 - Plaatst een meldknop in het meld‑kanaal.
-- Laat rijders een incident indienen via een begeleide flow (reden → schuldige → race/ronde → beschrijving).
+- Laat rijders een incident indienen via een begeleide flow (divisie → reden → schuldige → race/ronde/bocht → beschrijving).
 - Stuurt de melding door naar het stewards kanaal met stemknoppen.
 - Vraagt de melder om bewijs te uploaden (DM of kanaal).
 - Stuurt een DM naar de schuldige rijder om te reageren (éénmalig, binnen 2 dagen).
 - Laat stewards stemmen en het eindoordeel publiceren.
 - Publiceert afgehandelde incidenten in het resolved kanaal.
+- Logt incidenten optioneel extern in Google Sheets.
 
 ## Hoofdflow (kort)
 1) `raceincident melden` plaatst de meldknop in het meld‑kanaal.
-2) Melder kiest reden + schuldige, vult race/ronde/beschrijving in en bevestigt.
+2) Melder kiest divisie + reden + schuldige, vult race/ronde/bocht/beschrijving in en bevestigt.
 3) Incident verschijnt in het stewards kanaal met stemknoppen.
 4) Melder uploadt bewijs via DM (of kanaal).
 5) Schuldige ontvangt DM en kan één keer reageren (max 2 dagen).
@@ -28,9 +29,15 @@ De meeste instellingen staan in `config.json`:
 - `stewardRoleId` – rol-ID voor stewards
 - `incidentCounter` – teller voor incidentnummers (`INC-xxxxx`)
 - `autoDeleteHours` – auto‑delete van DM‑berichten/opties
+- `googleSheetsEnabled` – zet Google Sheets logging aan/uit
+- `googleSheetsSpreadsheetId` – spreadsheet‑ID
+- `googleSheetsSheetName` – tabbladnaam (sheet)
 
 ## Environment variabelen
 - `DISCORD_TOKEN` – bot token (verplicht)
+- `GOOGLE_SERVICE_ACCOUNT_JSON` – service‑account JSON (string)
+- `GOOGLE_SERVICE_ACCOUNT_B64` – base64 van service‑account JSON
+- `GOOGLE_SERVICE_ACCOUNT_FILE` – pad naar service‑account JSON
 
 ## Belangrijke bestanden
 - `index.js` – entrypoint, registreert handlers
@@ -50,6 +57,7 @@ De meeste instellingen staan in `config.json`:
 - Variabelen: `VARIABELEN_CHEATSHEET.md`
 - Git: `GIT_CHEATSHEET.md`
 - Uitleg bot: `UITLEG_BOT.md`
+- Google Sheets: `GOOGLE_SHEETS_CHEATSHEET.md`
 
 ## Install / Run (kort)
 1) Installeer dependencies:

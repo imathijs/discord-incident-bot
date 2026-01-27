@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
+    "discord.js": "^13.17.1",
     "dotenv": "^16.4.5",
-    "discord.js": "^14.25.1"
+    "googleapis": "^143.0.0"
   },
   "description": "",
   "scripts": {

@@ -14,6 +14,9 @@ Belangrijkste velden (gebruik je eigen IDs):
 - `stewardRoleId` – rol-ID van stewards (toegang / mentions)
 - `incidentCounter` – teller voor incidentnummers (`INC-xxxxx`)
 - `autoDeleteHours` – aantal uur voordat DM‑uploads / bot‑berichten worden verwijderd
+- `googleSheetsEnabled` – zet Google Sheets logging aan/uit
+- `googleSheetsSpreadsheetId` – spreadsheet‑ID
+- `googleSheetsSheetName` – tabbladnaam (sheet)
 
 Voorbeeld:
 ```json
@@ -24,7 +27,10 @@ Voorbeeld:
   "incidentChatChannelId": "1234567890",
   "stewardRoleId": "1234567890",
   "incidentCounter": 2026000,
-  "autoDeleteHours": 24
+  "autoDeleteHours": 24,
+  "googleSheetsEnabled": false,
+  "googleSheetsSpreadsheetId": "",
+  "googleSheetsSheetName": "Incidenten"
 }
 ```
 
@@ -32,10 +38,14 @@ Voorbeeld:
 Bestand: `.env` (of via hosting provider)
 
 - `DISCORD_TOKEN` – **verplicht**. De bot token.
+- `GOOGLE_SERVICE_ACCOUNT_JSON` – service‑account JSON (string)
+- `GOOGLE_SERVICE_ACCOUNT_B64` – base64 van service‑account JSON
+- `GOOGLE_SERVICE_ACCOUNT_FILE` – pad naar service‑account JSON
 
 Voorbeeld:
 ```
 DISCORD_TOKEN=your_bot_token_here
+GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 ```
 
 ## 3) Tijdslimieten (in code)

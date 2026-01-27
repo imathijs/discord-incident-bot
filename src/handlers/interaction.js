@@ -21,6 +21,7 @@ const {
 } = require('../constants');
 const { buildTallyText, computePenaltyPoints, mostVotedCategory } = require('../utils/votes');
 const { buildEvidencePromptRow } = require('../utils/evidence');
+const { appendIncidentRow, updateIncidentStatus } = require('../utils/sheets');
 
 function registerInteractionHandlers(client, { config, state, generateIncidentNumber }) {
   const {
@@ -47,7 +48,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
     }
   };
 
-  const buildIncidentModal = ({ raceName, round, description } = {}) => {
+  const buildIncidentModal = ({ raceName, round, corner, description } = {}) => {
     const modal = new ModalBuilder().setCustomId('incident_modal').setTitle('Race Incident Melding');
 
     const raceInput = new TextInputBuilder()
@@ -64,6 +65,13 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
       .setRequired(true);
     if (round != null) roundInput.setValue(round);
 
+    const cornerInput = new TextInputBuilder()
+      .setCustomId('bocht')
+      .setLabel('Welke bocht?')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+    if (corner != null) cornerInput.setValue(corner);
+
     const descriptionInput = new TextInputBuilder()
       .setCustomId('beschrijving')
       .setLabel('Beschrijving van het incident')
@@ -76,6 +84,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
     modal.addComponents(
       new ActionRowBuilder().addComponents(raceInput),
       new ActionRowBuilder().addComponents(roundInput),
+      new ActionRowBuilder().addComponents(cornerInput),
       new ActionRowBuilder().addComponents(descriptionInput)
     );
 
@@ -137,6 +146,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
     division,
     raceName,
     round,
+    corner,
     description,
     reasonLabel,
     guiltyMention,
@@ -153,6 +163,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         { name: '🏁 Divisie', value: division || 'Onbekend', inline: true },
         { name: '🏁 Race', value: raceName || 'Onbekend', inline: true },
         { name: '🔢 Ronde', value: round || 'Onbekend', inline: true },
+        { name: '↪️ Bocht', value: corner || 'Onbekend', inline: true },
         { name: '📝 Beschrijving', value: description || 'Onbekend', inline: false },
         {
           name: 'ℹ️ Let op',
@@ -188,6 +199,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
   const submitIncidentReport = async (interaction, pending) => {
     const raceName = pending.raceName;
     const round = pending.round;
+    const corner = pending.corner;
     const description = pending.description;
     const evidence = 'Zie uploads/links';
     const division = pending.division || 'Onbekend';
@@ -226,6 +238,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         { name: '🏁 Divisie', value: division, inline: true },
         { name: '🏁 Race', value: raceName, inline: true },
         { name: '🔢 Ronde', value: round, inline: true },
+        { name: '↪️ Bocht', value: corner || 'Onbekend', inline: true },
         { name: '⚠️ Schuldige rijder', value: guiltyMention || guiltyDriver, inline: true },
         { name: '📌 Reden', value: reasonLabel },
         { name: '📝 Beschrijving', value: description },
@@ -281,17 +294,35 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
       components: [voteButtons, voteButtonsRow2, reporterSeparatorRow, reporterButtons, reporterButtonsRow2]
     });
 
+    const sheetRowNumber = await appendIncidentRow({
+      config,
+      row: [
+        'New',
+        new Date().toISOString(),
+        raceName,
+        pending.reporterTag,
+        guiltyDriver,
+        division,
+        round,
+        corner || '',
+        reasonLabel,
+        description
+      ]
+    });
+
     activeIncidents.set(message.id, {
       votes: {},
       incidentNumber,
       division,
       raceName,
       round,
+      corner,
       guiltyId: pending.guiltyId,
       guiltyDriver,
       reason: reasonLabel,
       reporter: pending.reporterTag,
-      reporterId: pending.reporterId
+      reporterId: pending.reporterId,
+      sheetRowNumber
     });
 
     if (pending.guiltyId) {
@@ -803,9 +834,11 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
             ephemeral: true
           });
         }
+        const corner = interaction.fields.getTextInputValue('bocht').trim();
         const description = interaction.fields.getTextInputValue('beschrijving');
         pending.raceName = raceName;
         pending.round = round;
+        pending.corner = corner;
         pending.description = description;
         if (!pending.incidentNumber) pending.incidentNumber = generateIncidentNumber();
         pending.expiresAt = Date.now() + incidentReportWindowMs;
@@ -821,6 +854,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           division: pending.division,
           raceName,
           round,
+          corner,
           description,
           reasonLabel,
           guiltyMention,
@@ -937,6 +971,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
               buildIncidentModal({
                 raceName: pending.raceName,
                 round: pending.round,
+                corner: pending.corner,
                 description: pending.description
               })
             );
@@ -1319,8 +1354,14 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
             .setStyle(ButtonStyle.Primary);
           if (!incidentData.guiltyId) appealButton.setDisabled(true);
           const appealRow = new ActionRowBuilder().addComponents(appealButton);
-          await resolvedChannel.send({ embeds: [reportEmbed], components: [appealRow] });
+        await resolvedChannel.send({ embeds: [reportEmbed], components: [appealRow] });
         }
+
+        await updateIncidentStatus({
+          config,
+          rowNumber: incidentData.sheetRowNumber,
+          status: 'Afgehandeld'
+        });
 
         const resolvedThreadId = config.resolvedThreadId || config.resolvedChannelId;
         const dmText =

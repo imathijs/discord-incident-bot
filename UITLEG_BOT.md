@@ -8,6 +8,7 @@ De bot verzorgt:
 - een bewijs‑flow via DM;
 - een stemproces voor stewards;
 - publicatie van uitslagen in het resolved kanaal (incl. divisie);
+- optionele logging van incidenten in Google Sheets (status wordt bijgewerkt bij afhandeling);
 - een gecontroleerd wederwoord‑moment voor de schuldige.
 
 ## Incident melder – stappen
@@ -15,7 +16,7 @@ De bot verzorgt:
 2) Geef aan in welke divisie je rijdt: **Div 1**, **Div 2**, **Div 3**, **Div 4**.
 3) Kies de reden van het incident.
 4) Selecteer de schuldige rijder.
-5) Vul race‑nummer, ronde en beschrijving in.
+5) Vul race‑nummer, ronde, bocht en beschrijving in.
 6) Controleer je melding en bevestig.
 7) Het incident verschijnt in het stewards kanaal met stemknoppen. De divisie wordt meegegeven.
 8) Je ontvangt een DM om bewijs te uploaden (link of bijlage). Dit bewijs wordt toegevoegd aan het incident.
@@ -39,7 +40,7 @@ flowchart LR
   A[Incident melder] --> B[Meld incident via knop]
   B --> C[Kies divisie (Div 1-4)]
   C --> D[Kies reden + schuldige]
-  D --> E[Vul race/ronde/beschrijving]
+  D --> E[Vul race/ronde/bocht/beschrijving]
   E --> F[Bevestig + upload bewijs (DM)]
   F --> G[Stewards kanaal + divisie]
   G --> H[Stemmen + eindoordeel + divisie]
