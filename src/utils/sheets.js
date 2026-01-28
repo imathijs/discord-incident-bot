@@ -2,6 +2,19 @@ const fs = require('node:fs');
 const { google } = require('googleapis');
 
 let cachedClient = null;
+const HEADER_ROW = [
+  'Status',
+  'Datum',
+  'Divisie',
+  'Schuldige',
+  'Indiener',
+  'Race',
+  'Ronde',
+  'Circuit',
+  'Categorie',
+  'Verhaal',
+  'Steward verslag'
+];
 
 function getCredentials() {
   const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -60,6 +73,12 @@ function getSheetsClient() {
   return cachedClient;
 }
 
+function toA1SheetName(sheetName) {
+  if (!sheetName) return '';
+  const escaped = String(sheetName).replace(/'/g, "''");
+  return `'${escaped}'`;
+}
+
 function extractRowNumber(updatedRange) {
   if (!updatedRange) return null;
   const match = updatedRange.match(/!A(\d+)/);
@@ -67,15 +86,42 @@ function extractRowNumber(updatedRange) {
   return Number(match[1]) || null;
 }
 
+async function ensureHeaderRow({ client, sheetName, spreadsheetId }) {
+  try {
+    const res = await client.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!A1:K1`
+    });
+    const values = res?.data?.values?.[0] || [];
+    const hasAny = values.some((value) => String(value || '').trim() !== '');
+    if (hasAny) return;
+
+    await client.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${sheetName}!A1:K1`,
+      valueInputOption: 'RAW',
+      resource: { values: [HEADER_ROW] }
+    });
+  } catch (err) {
+    console.error('Google Sheets: header check failed', err?.message || err);
+  }
+}
+
 async function appendIncidentRow({ config, row }) {
   if (!isSheetsEnabled(config)) return null;
   const client = getSheetsClient();
   if (!client) return null;
+  const sheetName = toA1SheetName(config.googleSheetsSheetName);
+  await ensureHeaderRow({
+    client,
+    sheetName,
+    spreadsheetId: config.googleSheetsSpreadsheetId
+  });
 
   try {
     const res = await client.spreadsheets.values.append({
       spreadsheetId: config.googleSheetsSpreadsheetId,
-      range: `${config.googleSheetsSheetName}!A1`,
+      range: `${sheetName}!A1`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       resource: { values: [row] }
@@ -91,11 +137,12 @@ async function updateIncidentStatus({ config, rowNumber, status }) {
   if (!isSheetsEnabled(config) || !rowNumber) return false;
   const client = getSheetsClient();
   if (!client) return false;
+  const sheetName = toA1SheetName(config.googleSheetsSheetName);
 
   try {
     await client.spreadsheets.values.update({
       spreadsheetId: config.googleSheetsSpreadsheetId,
-      range: `${config.googleSheetsSheetName}!A${rowNumber}`,
+      range: `${sheetName}!A${rowNumber}`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [[status]] }
     });
@@ -106,7 +153,32 @@ async function updateIncidentStatus({ config, rowNumber, status }) {
   }
 }
 
+async function updateIncidentResolution({ config, rowNumber, status, stewardReport }) {
+  if (!isSheetsEnabled(config) || !rowNumber) return false;
+  const client = getSheetsClient();
+  if (!client) return false;
+  const sheetName = toA1SheetName(config.googleSheetsSheetName);
+
+  try {
+    await client.spreadsheets.values.batchUpdate({
+      spreadsheetId: config.googleSheetsSpreadsheetId,
+      resource: {
+        valueInputOption: 'USER_ENTERED',
+        data: [
+          { range: `${sheetName}!A${rowNumber}`, values: [[status]] },
+          { range: `${sheetName}!K${rowNumber}`, values: [[stewardReport || '']] }
+        ]
+      }
+    });
+    return true;
+  } catch (err) {
+    console.error('Google Sheets: resolution update failed', err?.message || err);
+    return false;
+  }
+}
+
 module.exports = {
   appendIncidentRow,
-  updateIncidentStatus
+  updateIncidentStatus,
+  updateIncidentResolution
 };

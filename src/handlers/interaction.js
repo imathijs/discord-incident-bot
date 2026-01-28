@@ -21,7 +21,7 @@ const {
 } = require('../constants');
 const { buildTallyText, computePenaltyPoints, mostVotedCategory } = require('../utils/votes');
 const { buildEvidencePromptRow } = require('../utils/evidence');
-const { appendIncidentRow, updateIncidentStatus } = require('../utils/sheets');
+const { appendIncidentRow, updateIncidentStatus, updateIncidentResolution } = require('../utils/sheets');
 
 function registerInteractionHandlers(client, { config, state, generateIncidentNumber }) {
   const {
@@ -36,6 +36,16 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
   function isSteward(member) {
     return member.roles?.cache?.has(config.stewardRoleId);
   }
+
+  const pad2 = (value) => String(value).padStart(2, '0');
+  const formatSheetTimestamp = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = pad2(date.getMonth() + 1);
+    const day = pad2(date.getDate());
+    const hours = pad2(date.getHours());
+    const minutes = pad2(date.getMinutes());
+    return `${year}-${month}-${day} - ${hours}:${minutes}`;
+  };
 
   const removePendingGuiltyReply = (incidentNumber) => {
     if (!incidentNumber) return;
@@ -133,7 +143,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           new ButtonBuilder()
             .setCustomId(`incident_reason:${reason.value}`)
             .setLabel(reason.label)
-            .setStyle(ButtonStyle.Secondary)
+            .setStyle(ButtonStyle.Primary)
         );
       }
       rows.push(row);
@@ -298,15 +308,16 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
       config,
       row: [
         'New',
-        new Date().toISOString(),
-        raceName,
-        pending.reporterTag,
-        guiltyDriver,
+        formatSheetTimestamp(),
         division,
+        guiltyDriver,
+        pending.reporterTag,
+        raceName,
         round,
         corner || '',
         reasonLabel,
-        description
+        description,
+        ''
       ]
     });
 
@@ -702,7 +713,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
 
         const reasonRows = buildReasonRows();
         await interaction.update({
-          content: 'Kies de reden van het incident. Daarna kun je de schuldige selecteren.',
+          content: 'Kies de reden van het incident.',
           components: reasonRows
         });
         return;
@@ -1112,7 +1123,9 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         // Categorie stemmen
         if (id.startsWith('vote_cat')) {
           const cat = id.replace('vote_', '');
-          incidentData.votes[interaction.user.id].category = cat;
+          const entry = incidentData.votes[interaction.user.id];
+          const isSame = entry.category === cat;
+          entry.category = isSame ? null : cat;
 
           // Update tussenstand in embed
           const tally = buildTallyText(incidentData.votes);
@@ -1126,13 +1139,20 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           newEmbed.setFields(fields);
 
           await interaction.message.edit({ embeds: [newEmbed] });
-          return interaction.reply({ content: `✅ Stem geregistreerd: **${cat.toUpperCase()}**`, ephemeral: true });
+          return interaction.reply({
+            content: isSame
+              ? '✅ Stem voor de schuldige ingetrokken.'
+              : `✅ Stem geregistreerd: **${cat.toUpperCase()}**`,
+            ephemeral: true
+          });
         }
 
         // Categorie stemmen (indiener)
         if (id.startsWith('vote_reporter_cat')) {
           const cat = id.replace('vote_reporter_', '');
-          incidentData.votes[interaction.user.id].reporterCategory = cat;
+          const entry = incidentData.votes[interaction.user.id];
+          const isSame = entry.reporterCategory === cat;
+          entry.reporterCategory = isSame ? null : cat;
 
           const tally = buildTallyText(incidentData.votes, 'reporter');
           const voteList = buildVoteBreakdown(incidentData.votes, 'reporter');
@@ -1145,15 +1165,18 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
           newEmbed.setFields(fields);
 
           await interaction.message.edit({ embeds: [newEmbed] });
-          return interaction.reply({ content: `✅ Stem geregistreerd: **${cat.toUpperCase()}** (indiener)`, ephemeral: true });
+          return interaction.reply({
+            content: isSame
+              ? '✅ Stem voor de indiener ingetrokken.'
+              : `✅ Stem geregistreerd: **${cat.toUpperCase()}** (indiener)`,
+            ephemeral: true
+          });
         }
 
         // + Strafpunt toggle (aan/uit)
         if (id === 'vote_plus') {
           const entry = incidentData.votes[interaction.user.id];
           entry.plus = !entry.plus;
-
-          // Optioneel: voorkom dat plus & minus tegelijk aan staan
           if (entry.plus) entry.minus = false;
 
           const tally = buildTallyText(incidentData.votes);
@@ -1177,8 +1200,6 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         if (id === 'vote_minus') {
           const entry = incidentData.votes[interaction.user.id];
           entry.minus = !entry.minus;
-
-          // Optioneel: voorkom dat plus & minus tegelijk aan staan
           if (entry.minus) entry.plus = false;
 
           const tally = buildTallyText(incidentData.votes);
@@ -1202,7 +1223,6 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         if (id === 'vote_reporter_plus') {
           const entry = incidentData.votes[interaction.user.id];
           entry.reporterPlus = !entry.reporterPlus;
-
           if (entry.reporterPlus) entry.reporterMinus = false;
 
           const tally = buildTallyText(incidentData.votes, 'reporter');
@@ -1226,7 +1246,6 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         if (id === 'vote_reporter_minus') {
           const entry = incidentData.votes[interaction.user.id];
           entry.reporterMinus = !entry.reporterMinus;
-
           if (entry.reporterMinus) entry.reporterPlus = false;
 
           const tally = buildTallyText(incidentData.votes, 'reporter');
@@ -1339,28 +1358,17 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
                   `Ingediend door: **${incidentData.reporter || 'Onbekend'}**\n` +
                   `Rijder: **${incidentData.guiltyDriver}**\n` +
                   `Reden: **${incidentData.reason || 'Onbekend'}**`
-              },
-              { name: '\u200b', value: '\u200b' },
-              {
-                name: '🗣️ Wederwoord',
-                value:
-                  'Niet eens met dit besluit? Klik hier om je reactie te versturen.'
               }
             )
             .setTimestamp();
-          const appealButton = new ButtonBuilder()
-            .setCustomId(`appeal_resolved:${incidentData.incidentNumber || 'ONBEKEND'}:${incidentData.guiltyId || ''}`)
-            .setLabel('Wederwoord indienen')
-            .setStyle(ButtonStyle.Primary);
-          if (!incidentData.guiltyId) appealButton.setDisabled(true);
-          const appealRow = new ActionRowBuilder().addComponents(appealButton);
-        await resolvedChannel.send({ embeds: [reportEmbed], components: [appealRow] });
+        await resolvedChannel.send({ embeds: [reportEmbed] });
         }
 
-        await updateIncidentStatus({
+        await updateIncidentResolution({
           config,
           rowNumber: incidentData.sheetRowNumber,
-          status: 'Afgehandeld'
+          status: 'Afgehandeld',
+          stewardReport: finalText
         });
 
         const resolvedThreadId = config.resolvedThreadId || config.resolvedChannelId;
