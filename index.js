@@ -1,5 +1,29 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 
+function assertRuntimeRequirements() {
+  const [major, minor] = process.versions.node.split('.').map((v) => Number(v));
+  const minMajor = 16;
+  const minMinor = 9;
+  const isNodeOk = major > minMajor || (major === minMajor && minor >= minMinor);
+  if (!isNodeOk) {
+    console.error(
+      `Node.js versie te oud (${process.versions.node}). Vereist >= ${minMajor}.${minMinor}.`
+    );
+    process.exit(1);
+  }
+
+  let discordMajor = null;
+  try {
+    // eslint-disable-next-line global-require, import/no-unresolved
+    const pkg = require('discord.js/package.json');
+    discordMajor = Number(String(pkg.version || '').split('.')[0]) || null;
+  } catch {}
+  if (discordMajor && discordMajor < 14) {
+    console.error(`discord.js versie te oud (${discordMajor}). Vereist v14+.`);
+    process.exit(1);
+  }
+}
+
 try {
   require('dotenv').config();
 } catch {}
@@ -8,6 +32,8 @@ const { config, token, generateIncidentNumber } = require('./src/config');
 const { createState } = require('./src/state');
 const { registerInteractionHandlers } = require('./src/handlers/interaction');
 const { registerMessageHandlers } = require('./src/handlers/message');
+
+assertRuntimeRequirements();
 
 const client = new Client({
   intents: [

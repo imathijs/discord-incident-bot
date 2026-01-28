@@ -11,7 +11,7 @@ Maak een tabblad (sheet) aan met exact deze kolommen (A t/m J):
 5. Schuldig(en)
 6. Divisie
 7. Ronde
-8. Bocht
+8. Circuit
 9. Incident template
 10. verhaal indiener
 

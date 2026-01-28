@@ -67,7 +67,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
 
     const cornerInput = new TextInputBuilder()
       .setCustomId('bocht')
-      .setLabel('Welke bocht?')
+      .setLabel('Welk circuit?')
       .setStyle(TextInputStyle.Short)
       .setRequired(true);
     if (corner != null) cornerInput.setValue(corner);
@@ -163,7 +163,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         { name: '🏁 Divisie', value: division || 'Onbekend', inline: true },
         { name: '🏁 Race', value: raceName || 'Onbekend', inline: true },
         { name: '🔢 Ronde', value: round || 'Onbekend', inline: true },
-        { name: '↪️ Bocht', value: corner || 'Onbekend', inline: true },
+        { name: '🏁 Circuit', value: corner || 'Onbekend', inline: true },
         { name: '📝 Beschrijving', value: description || 'Onbekend', inline: false },
         {
           name: 'ℹ️ Let op',
@@ -238,7 +238,7 @@ function registerInteractionHandlers(client, { config, state, generateIncidentNu
         { name: '🏁 Divisie', value: division, inline: true },
         { name: '🏁 Race', value: raceName, inline: true },
         { name: '🔢 Ronde', value: round, inline: true },
-        { name: '↪️ Bocht', value: corner || 'Onbekend', inline: true },
+        { name: '🏁 Circuit', value: corner || 'Onbekend', inline: true },
         { name: '⚠️ Schuldige rijder', value: guiltyMention || guiltyDriver, inline: true },
         { name: '📌 Reden', value: reasonLabel },
         { name: '📝 Beschrijving', value: description },
